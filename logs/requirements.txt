@@ -1,0 +1,10 @@
+nmap
+pyqt5
+browser_cookie3
+autopy
+requests
+telethon
+pywhatkit
+facebook-sdk
+openai
+asyncio
