@@ -35,7 +35,7 @@ def print_banner():
     ██║╚██╗██║██║   ██║██║     ██║     ██╔══██║██║     ██║     ██║
     ██║ ╚████║╚██████╔╝███████╗╚██████╗██║  ██║███████╗╚██████╗██║
     ╚═╝  ╚═══╝ ╚═════╝ ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝ ╚═════╝╚═╝
-    MultiToolV4 by kdairatchi 🛠️ - Enhanced Multi-Tool for Pentesting
+    MultiToolV5 - Enhanced Multi-Tool for Pentesting 🛠️
     """
     print(banner)
 
@@ -169,99 +169,39 @@ def steal_cookies(output_area):
     except Exception as e:
         handle_exception(e)
 
-# ===================== Web Scraping and Cyber Intel ===================== #
+# ===================== DNS Tab Functions ===================== #
 
-def find_secrets(html, output_area):
-    """Identify potential sensitive information (e.g., API keys, passwords) in the HTML."""
-    regex_patterns = [
-        r'(?i)(api_key|apikey|access_token|auth_token|secret|password)\s*[:=]\s*[\'"]?([A-Za-z0-9_-]+)[\'"]?',
-        r'(?i)Bearer\s+([A-Za-z0-9_-]+)'
-    ]
-    for pattern in regex_patterns:
-        matches = re.findall(pattern, html)
-        if matches:
-            output_area.insert(tk.END, f"Found potential secrets: {matches}\n")
-
-def scrape_webpage(url, output_area):
-    """Scrape data from a webpage and display in the GUI."""
+def dns_lookup(domain, output_area):
+    """Perform DNS lookup for a given domain."""
     try:
-        output_area.insert(tk.END, f"Scraping URL: {url}\n")
-        response = requests.get(url)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.content, 'html.parser')
-            html_content = response.text
-
-            # Scrape all paragraphs
-            paragraphs = soup.find_all('p')
-            output_area.insert(tk.END, "Paragraphs:\n")
-            for para in paragraphs:
-                output_area.insert(tk.END, para.get_text() + "\n")
-
-            # Scrape all links
-            links = soup.find_all('a', href=True)
-            output_area.insert(tk.END, "Links:\n")
-            for link in links:
-                output_area.insert(tk.END, f"{link['href']}\n")
-
-            # Scrape all headers (h1)
-            headers = soup.find_all('h1')
-            output_area.insert(tk.END, "Headers:\n")
-            for header in headers:
-                output_area.insert(tk.END, header.get_text() + "\n")
-
-            # Find secrets in HTML
-            output_area.insert(tk.END, "Looking for secrets...\n")
-            find_secrets(html_content, output_area)
-
-        else:
-            output_area.insert(tk.END, f"Error: Unable to scrape URL (Status Code: {response.status_code})\n")
+        result = socket.gethostbyname(domain)
+        output_area.insert(tk.END, f"DNS Lookup Result for {domain}: {result}\n")
     except Exception as e:
         handle_exception(e)
 
-# ===================== Web Crawler and Spider ===================== #
-
-def crawl_website(url, output_area, depth=2):
-    """Crawl a website for all links up to a specified depth."""
+def dns_zone_transfer(domain, output_area):
+    """Simulate a DNS Zone Transfer."""
     try:
-        output_area.insert(tk.END, f"Crawling URL: {url} (Depth: {depth})\n")
-        visited = set()
-
-        def crawl(url, depth):
-            if depth == 0 or url in visited:
-                return
-            visited.add(url)
-            response = requests.get(url)
-            soup = BeautifulSoup(response.content, 'html.parser')
-
-            links = soup.find_all('a', href=True)
-            output_area.insert(tk.END, f"Links on {url}:\n")
-            for link in links:
-                href = link['href']
-                if href.startswith("http"):
-                    output_area.insert(tk.END, f"{href}\n")
-                    crawl(href, depth - 1)
-
-        crawl(url, depth)
+        output_area.insert(tk.END, f"Simulating DNS Zone Transfer for {domain} (Dummy Function)...\n")
+        # In a real tool, we would use DNS libraries to do actual zone transfer.
     except Exception as e:
         handle_exception(e)
 
-# ===================== AI Wordlist Generator ===================== #
+# ===================== VS Code-Like Notes Tab ===================== #
 
-def generate_wordlist_from_content(content, output_area):
-    """Generate a wordlist based on the content of a webpage."""
-    words = re.findall(r'\b\w+\b', content)
-    unique_words = set(words)
-
-    output_area.insert(tk.END, "Generated Wordlist:\n")
-    for word in unique_words:
-        output_area.insert(tk.END, f"{word}\n")
+def create_notes_tab(output_area):
+    """A simple note-taking tab similar to VS Code."""
+    try:
+        output_area.insert(tk.END, "You can use this section to take notes...\n")
+    except Exception as e:
+        handle_exception(e)
 
 # ===================== GUI & Application ===================== #
 
 def create_gui():
     """Create the main GUI with tabbed interface."""
     root = tk.Tk()
-    root.title("Multi Tool V4 by kdairatchi")
+    root.title("Multi Tool V5 by kdairatchi")
 
     # Create notebook for tabs
     notebook = ttk.Notebook(root)
@@ -331,27 +271,28 @@ def create_gui():
                               command=lambda: steal_cookies(cookie_output))
     cookie_button.pack(pady=5)
 
-    # Web Scraper Tab
-    scraper_tab = ttk.Frame(notebook)
-    notebook.add(scraper_tab, text="Web Scraper")
-    scraper_output = scrolledtext.ScrolledText(scraper_tab, wrap=tk.WORD)
-    scraper_output.pack(expand=True, fill='both')
-    scraper_url = tk.Entry(scraper_tab)
-    scraper_url.pack(fill='x', padx=10, pady=5)
-    scraper_button = tk.Button(scraper_tab, text="Scrape Website", 
-                               command=lambda: scrape_webpage(scraper_url.get(), scraper_output))
-    scraper_button.pack(pady=5)
+    # DNS Tab
+    dns_tab = ttk.Frame(notebook)
+    notebook.add(dns_tab, text="DNS Tools")
+    dns_output = scrolledtext.ScrolledText(dns_tab, wrap=tk.WORD)
+    dns_output.pack(expand=True, fill='both')
+    dns_domain = tk.Entry(dns_tab)
+    dns_domain.pack(fill='x', padx=10, pady=5)
+    dns_lookup_button = tk.Button(dns_tab, text="DNS Lookup", 
+                                  command=lambda: dns_lookup(dns_domain.get(), dns_output))
+    dns_lookup_button.pack(pady=5)
+    dns_zone_button = tk.Button(dns_tab, text="DNS Zone Transfer", 
+                                command=lambda: dns_zone_transfer(dns_domain.get(), dns_output))
+    dns_zone_button.pack(pady=5)
 
-    # Web Crawler Tab
-    crawler_tab = ttk.Frame(notebook)
-    notebook.add(crawler_tab, text="Web Crawler")
-    crawler_output = scrolledtext.ScrolledText(crawler_tab, wrap=tk.WORD)
-    crawler_output.pack(expand=True, fill='both')
-    crawler_url = tk.Entry(crawler_tab)
-    crawler_url.pack(fill='x', padx=10, pady=5)
-    crawler_button = tk.Button(crawler_tab, text="Start Crawl", 
-                               command=lambda: crawl_website(crawler_url.get(), crawler_output))
-    crawler_button.pack(pady=5)
+    # VS Code Notes Tab
+    notes_tab = ttk.Frame(notebook)
+    notebook.add(notes_tab, text="VS Code Notes")
+    notes_output = scrolledtext.ScrolledText(notes_tab, wrap=tk.WORD)
+    notes_output.pack(expand=True, fill='both')
+    notes_button = tk.Button(notes_tab, text="Create Notes", 
+                             command=lambda: create_notes_tab(notes_output))
+    notes_button.pack(pady=5)
 
     root.mainloop()
 
