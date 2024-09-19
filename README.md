@@ -23,6 +23,9 @@
 - 🛡️ **Firewall & VPN Tabs**: Control your firewall and VPN from within the tool.
 - 🕵️‍♂️ **XSS Scanner**: Scan and detect Cross-Site Scripting vulnerabilities in URLs.
 - 📋 **DNS Tools**: Perform DNS lookups, zone transfers, and more.
+<p align="center">
+  <img src="https://user-images.githubusercontent.com/scraper_dns.png" alt="Web Scraper and DNS" width="600px">
+</p>
 
 ---
 
