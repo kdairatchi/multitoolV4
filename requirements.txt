@@ -1,6 +1,0 @@
-nmap
-pynput
-requests
-beautifulsoup4
-browser_cookie3
-tkinter
