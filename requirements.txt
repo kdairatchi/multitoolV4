@@ -3,7 +3,7 @@ requests
 nmap-python
 telethon
 pywhatkit
-facebook-sdk
+facebook-business
 openai
 browser-cookie3
 telehunting
