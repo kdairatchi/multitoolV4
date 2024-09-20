@@ -65,7 +65,7 @@ pip install -r requirements.txt
 
 > Here's the content of the `requirements.txt` file to ensure that all dependencies are installed correctly:
 
-```txt
+
 ~Option1~
 ```
 PyQt5==5.15.9
