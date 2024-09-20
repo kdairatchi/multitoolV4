@@ -154,6 +154,38 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+# JSON files
+*.json
+
+# Log files
+*.log
+logs/
+log/
+
+# Additional common logs
+*.txt
+
+# Database or data dumps
+*.db
+*.sqlite3
+
+# Environment/Configuration files
+*.env
+*.ini
+*.cfg
+
+# Miscellaneous file types
+*.csv
+*.xml
+*.yaml
+*.yml
+
+# Backup files
+*.bak
+*.old
+*.swp
+*.tmp
+
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
