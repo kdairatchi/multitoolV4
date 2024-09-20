@@ -1,10 +1,4 @@
-PySide6
+nmap
 requests
-nmap-python
-pywhatkit
-browser-cookie3
-facebook-business
 openai
-pyautogui
-telehunting
-asyncio
+pyside6
