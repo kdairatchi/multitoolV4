@@ -5,7 +5,7 @@ import threading
 import logging
 from logging.handlers import RotatingFileHandler
 import browser_cookie3
-import autopy
+import pyautogui  # Replaced autopy with pyautogui
 from PyQt5 import QtWidgets, QtCore
 import requests
 import pywhatkit as kit
