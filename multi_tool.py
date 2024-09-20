@@ -6,7 +6,6 @@ import logging
 from logging.handlers import RotatingFileHandler
 import browser_cookie3
 import pyautogui  # Replaced autopy with pyautogui
-from PyQt5 import QtWidgets, QtCore
 import requests
 import pywhatkit as kit
 from facebook_business.api import FacebookAdsApi
@@ -16,6 +15,9 @@ import os
 import sys
 import asyncio
 from telehunting import Telehunting
+from PySide6.QtWidgets import QApplication, QMainWindow, QTextEdit, QPushButton, QVBoxLayout, QWidget, QTabWidget, QLineEdit
+from PySide6 import QtCore
+import importlib.metadata  # Replaces old metadata package
 
 # ===================== Logging Setup ===================== #
 if not os.path.exists('logs'):
@@ -182,7 +184,7 @@ def handle_exception(exception, output_area=None):
         detect_and_fix_errors(error_message, output_area)
 
 # ===================== GUI Application ===================== #
-class MultiToolV4(QtWidgets.QMainWindow):
+class MultiToolV4(QMainWindow):
     """Main GUI for MultiToolV4."""
     
     def __init__(self):
@@ -194,12 +196,12 @@ class MultiToolV4(QtWidgets.QMainWindow):
         self.setWindowTitle('MultiToolV4 by kdairatchi')
 
         # Central Widget
-        central_widget = QtWidgets.QWidget(self)
+        central_widget = QWidget(self)
         self.setCentralWidget(central_widget)
-        layout = QtWidgets.QVBoxLayout(central_widget)
+        layout = QVBoxLayout(central_widget)
 
         # Tabs
-        self.tabs = QtWidgets.QTabWidget()
+        self.tabs = QTabWidget()
         layout.addWidget(self.tabs)
 
         # Bot Setup Tab
@@ -215,23 +217,23 @@ class MultiToolV4(QtWidgets.QMainWindow):
 
     def add_bot_tab(self):
         """Add bot setup tab."""
-        bot_tab = QtWidgets.QWidget()
-        self.bot_output = QtWidgets.QTextEdit()
-        setup_button = QtWidgets.QPushButton("Setup Bots")
+        bot_tab = QWidget()
+        self.bot_output = QTextEdit()
+        setup_button = QPushButton("Setup Bots")
         setup_button.clicked.connect(lambda: self.setup_bots())
-        layout = QtWidgets.QVBoxLayout(bot_tab)
+        layout = QVBoxLayout(bot_tab)
         layout.addWidget(self.bot_output)
         layout.addWidget(setup_button)
         self.tabs.addTab(bot_tab, "Bot Setup")
 
     def add_victim_monitor_tab(self):
         """Add victim monitoring tab."""
-        victim_tab = QtWidgets.QWidget()
-        self.victim_output = QtWidgets.QTextEdit()
-        victim_ip_input = QtWidgets.QLineEdit()
-        add_victim_button = QtWidgets.QPushButton("Add Victim")
+        victim_tab = QWidget()
+        self.victim_output = QTextEdit()
+        victim_ip_input = QLineEdit()
+        add_victim_button = QPushButton("Add Victim")
         add_victim_button.clicked.connect(lambda: add_victim(victim_ip_input.text(), self.victim_output))
-        layout = QtWidgets.QVBoxLayout(victim_tab)
+        layout = QVBoxLayout(victim_tab)
         layout.addWidget(victim_ip_input)
         layout.addWidget(self.victim_output)
         layout.addWidget(add_victim_button)
@@ -239,9 +241,9 @@ class MultiToolV4(QtWidgets.QMainWindow):
 
     def add_error_handling_tab(self):
         """Add AI error handling tab."""
-        error_handling_tab = QtWidgets.QWidget()
-        self.error_output = QtWidgets.QTextEdit()
-        layout = QtWidgets.QVBoxLayout(error_handling_tab)
+        error_handling_tab = QWidget()
+        self.error_output = QTextEdit()
+        layout = QVBoxLayout(error_handling_tab)
         layout.addWidget(self.error_output)
         self.tabs.addTab(error_handling_tab, "Error Handling")
 
@@ -265,7 +267,7 @@ class MultiToolV4(QtWidgets.QMainWindow):
 
 # Main function to start the GUI application
 def main():
-    app = QtWidgets.QApplication(sys.argv)
+    app = QApplication(sys.argv)
     gui = MultiToolV4()
     sys.exit(app.exec_())
 
