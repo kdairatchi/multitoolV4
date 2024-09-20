@@ -9,7 +9,8 @@ import pyautogui  # Replaced autopy with pyautogui
 from PyQt5 import QtWidgets, QtCore
 import requests
 import pywhatkit as kit
-import facebook
+from facebook_business.api import FacebookAdsApi
+from facebook_business.adobjects.page import Page
 import openai
 import os
 import sys
@@ -41,6 +42,9 @@ TELEGRAM_USERNAME = api_credentials['telegram_username']  # Telehunting uses you
 
 # Initialize OpenAI API
 openai.api_key = api_credentials["openai_api_key"]
+
+# Initialize Facebook API
+FacebookAdsApi.init(access_token=FACEBOOK_TOKEN)
 
 # ===================== API Key Validation ===================== #
 def validate_api_keys(output_area):
@@ -81,10 +85,12 @@ def whatsapp_notify(message, phone_number, output_area):
         handle_exception(e, output_area)
 
 def setup_facebook_bot(output_area):
-    """Send a notification via Facebook."""
+    """Send a notification via Facebook using the official facebook_business SDK."""
     try:
-        graph = facebook.GraphAPI(access_token=FACEBOOK_TOKEN)
-        graph.put_object(parent_object='me', connection_name='feed', message="Monitoring vulnerabilities.")
+        page = Page(FACEBOOK_TOKEN)
+        page.create_post({
+            'message': "Monitoring vulnerabilities.",
+        })
         output_area.append("Facebook bot setup complete.")
     except Exception as e:
         handle_exception(e, output_area)
@@ -265,4 +271,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
