@@ -1,9 +1,10 @@
-PyQt5
+PySide6
 requests
 nmap-python
-telethon
 pywhatkit
+browser-cookie3
 facebook-business
 openai
-browser-cookie3
+pyautogui
 telehunting
+asyncio
