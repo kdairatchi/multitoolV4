@@ -48,6 +48,8 @@ source myenv/bin/activate
 ```bash
 python -m venv myenv
 myenv\Scripts\activate
+git clone https://github.com/kdairatchi/multitoolV4
+cd multi_toolV4
 ```
 
 ### 2. 📥 Installing Dependencies
