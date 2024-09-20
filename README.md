@@ -61,6 +61,7 @@ pip install -r requirements.txt
 > Here's the content of the `requirements.txt` file to ensure that all dependencies are installed correctly:
 
 ```txt
+~Option1~
 PyQt5==5.15.9
 requests==2.31.0
 nmap-python==0.7.1
@@ -70,6 +71,21 @@ facebook-sdk==3.1.0
 openai==0.28.0
 browser-cookie3==0.17.3
 autopy==4.0.0
+
+~Option2~
+# Update package list and install system dependencies
+sudo apt update && sudo apt install -y python3-pip python3-venv nmap
+
+# Install required Python packages using pip (for system-wide installation)
+pip3 install PyQt5==5.15.9 requests==2.31.0 nmap-python==0.7.1 telethon==1.29.1 pywhatkit==5.4 facebook-sdk==3.1.0 openai==0.28.0 browser-cookie3==0.17.3 autopy==4.0.0
+
+~Option3~
+# Create a virtual environment
+python3 -m venv myenv
+source myenv/bin/activate
+
+# Install Python packages in the virtual environment
+pip install PyQt5==5.15.9 requests==2.31.0 nmap-python==0.7.1 telethon==1.29.1 pywhatkit==5.4 facebook-sdk==3.1.0 openai==0.28.0 browser-cookie3==0.17.3 autopy==4.0.0
 ```
 
 ### 3. ✅ Verifying Installation
