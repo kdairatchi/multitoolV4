@@ -1,3 +1,147 @@
+
+# 🚀 Multi-Tool Setup Guide
+
+Welcome to the **Multi-Tool** repository! This guide will help you set up a robust Python environment with all necessary libraries while ensuring compatibility across the board. 🛠️
+
+### 📋 Overview
+
+This project requires a variety of libraries for GUI, networking, asynchronous operations, and bot integrations. It's crucial to maintain compatibility between these packages to ensure smooth operation. Below are the **latest compatible versions** of the libraries you'll need, as well as the steps to set up your environment.
+
+---
+
+## 📦 Suggested Versions
+
+Here’s a list of the versions of libraries that work well together:
+
+| 🛠️ **Library**      | 📌 **Version** | 📝 **Description**                              |
+|---------------------|----------------|------------------------------------------------|
+| **PyQt5**           | 5.15.9         | GUI framework                                  |
+| **requests**        | 2.31.0         | HTTP requests library                          |
+| **nmap-python**     | 0.7.1          | Python wrapper for Nmap                        |
+| **telethon**        | 1.29.1         | Telegram bot integration                       |
+| **pywhatkit**       | 5.4            | WhatsApp messaging integration                 |
+| **facebook-sdk**    | 3.1.0          | Facebook API integration                       |
+| **openai**          | 0.28.0         | OpenAI API for AI-guided error handling        |
+| **browser-cookie3** | 0.17.3         | Cookie management for browsers                 |
+| **autopy**          | 4.0.0          | Cross-platform GUI automation                  |
+| **asyncio**         | Native to Python 3.3+ | Asynchronous I/O framework |
+
+---
+
+## 🛠️ Environment Setup
+
+To ensure compatibility between all packages, follow these steps:
+
+### 1. 🔧 Create a Virtual Environment
+
+First, create a virtual environment to isolate the packages and avoid conflicts with system-installed libraries:
+
+```bash
+# For Linux and MacOS
+python3 -m venv myenv
+source myenv/bin/activate
+
+# For Windows
+python -m venv myenv
+myenv\Scripts\activate
+```
+
+### 2. 📥 Install the Packages
+
+Next, use the `requirements.txt` file to install all the necessary libraries:
+
+```bash
+pip install -r requirements.txt
+```
+
+> **Pro Tip**: Ensure your `requirements.txt` includes the following versions to maintain compatibility:
+
+```txt
+PyQt5==5.15.9
+requests==2.31.0
+nmap-python==0.7.1
+telethon==1.29.1
+pywhatkit==5.4
+facebook-sdk==3.1.0
+openai==0.28.0
+browser-cookie3==0.17.3
+autopy==4.0.0
+```
+
+### 3. ✅ Check for Dependency Conflicts
+
+Once the packages are installed, you can check for any potential dependency conflicts:
+
+```bash
+pip check
+```
+
+---
+
+## ⚙️ Testing the Application
+
+Now, you're ready to test the application! Make sure the following components work without issues:
+
+1. **Asynchronous behavior** (using `asyncio` for non-blocking operations)
+2. **Network operations** (HTTP requests, bot integrations, etc.)
+3. **GUI elements** (via `PyQt5`)
+4. **OpenAI integration** (for real-time error suggestions)
+
+---
+
+## 🛑 Known Issues and Workarounds
+
+### ⚡ Telethon Compatibility
+
+When using **`telethon`** with `asyncio` in a `PyQt5` application, avoid using `asyncio.run()` inside the PyQt event loop. Instead, use `asyncio.create_task()` for better integration.
+
+### 🖼️ PyQt5 and Event Loops
+
+If you're combining **`PyQt5`** with `asyncio`, ensure proper event loop management using `QEventLoop` to avoid blocking the GUI.
+
+### 🔍 nmap-python Dependency
+
+Ensure that **`nmap`** is installed on your system before using `nmap-python`. Here’s how you can install it:
+
+```bash
+# For Linux
+sudo apt install nmap
+
+# For MacOS
+brew install nmap
+```
+
+---
+
+## 💻 Contributing
+
+Contributions are welcome! Please feel free to open issues or submit pull requests if you find any bugs or have suggestions for improvement. 😊
+
+---
+
+## 🎨 Screenshots
+
+Here are some examples of the application in action:
+
+![App Screenshot](https://example.com/screenshot1.png)
+
+---
+
+## 📃 License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🌟 Acknowledgments
+
+Thanks to all contributors, and a special shout-out to the developers of these fantastic libraries! 🙌
+
+---
+
+Feel free to customize this further based on your project needs. The goal is to make it engaging, informative, and easy to follow. Let me know if you need any more help!
+
+---Final Update---
 # MultiToolV4 by kdairatchi 🛠️
 
 ### Description:
