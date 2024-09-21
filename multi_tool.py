@@ -8,9 +8,9 @@ import requests
 import openai
 import os
 import sys
+import json
 from PySide6.QtWidgets import QApplication, QMainWindow, QTextEdit, QPushButton, QVBoxLayout, QWidget, QTabWidget, QLineEdit
-from PySide6 import QtCore
-import asyncio
+from PySide6.QtCore import Signal, QObject, QThread
 
 # ===================== Logging Setup ===================== #
 if not os.path.exists('logs'):
@@ -27,45 +27,72 @@ RHOST = "target_ip"
 NMAP_ARGS = "-Pn -sT -O"
 
 # API Credentials from config file
-with open('config/api_credentials.json', 'r') as cred_file:
-    api_credentials = json.load(cred_file)
-
-# Initialize OpenAI API
-openai.api_key = api_credentials["openai_api_key"]
+try:
+    with open('config/api_credentials.json', 'r') as cred_file:
+        api_credentials = json.load(cred_file)
+    openai.api_key = api_credentials["openai_api_key"]
+except (FileNotFoundError, json.JSONDecodeError) as e:
+    logging.error(f"Error loading API credentials: {str(e)}")
+    sys.exit("Error loading API credentials. Exiting...")
 
 # ===================== AI Error Handling ===================== #
+class WorkerSignals(QObject):
+    result = Signal(str)  # Signal to send result messages to the GUI
+
 def detect_and_fix_errors(error_message, output_area):
     """Use OpenAI to suggest fixes for detected errors."""
-    try:
-        response = openai.Completion.create(
-            model="text-davinci-003",
-            prompt=f"Error detected: {error_message}. Suggest a fix.",
-            max_tokens=150
-        )
-        suggestion = response.choices[0].text.strip()
-        output_area.append(f"AI Suggestion: {suggestion}")
-    except openai.error.OpenAIError as e:
-        output_area.append(f"OpenAI Error: {str(e)}")
-        logging.error(f"OpenAI error: {str(e)}")
-    except Exception as e:
-        output_area.append(f"Unhandled error in AI detection: {str(e)}")
-        logging.error(f"AI detection error: {str(e)}")
+    class OpenAIThread(QThread):
+        def __init__(self, error_message, signals):
+            super().__init__()
+            self.error_message = error_message
+            self.signals = signals
+
+        def run(self):
+            try:
+                response = openai.Completion.create(
+                    model="text-davinci-003",
+                    prompt=f"Error detected: {self.error_message}. Suggest a fix.",
+                    max_tokens=150
+                )
+                suggestion = response.choices[0].text.strip()
+                self.signals.result.emit(f"AI Suggestion: {suggestion}")
+            except openai.error.OpenAIError as e:
+                self.signals.result.emit(f"OpenAI Error: {str(e)}")
+                logging.error(f"OpenAI error: {str(e)}")
+            except Exception as e:
+                self.signals.result.emit(f"Unhandled error in AI detection: {str(e)}")
+                logging.error(f"AI detection error: {str(e)}")
+
+    signals = WorkerSignals()
+    signals.result.connect(output_area.append)
+
+    openai_thread = OpenAIThread(error_message, signals)
+    openai_thread.start()
 
 # ===================== Victim Monitoring ===================== #
 victims = []
 
 def add_victim(ip_address, output_area):
     """Monitor victim and notify via AI suggestion on vulnerability."""
-    if not validate_ip(ip_address):
-        output_area.append(f"Invalid IP address: {ip_address}\n")
-        logging.error(f"Attempted to monitor invalid IP address: {ip_address}")
-        return
+    class VictimThread(QThread):
+        def __init__(self, ip_address, signals):
+            super().__init__()
+            self.ip_address = ip_address
+            self.signals = signals
 
-    victims.append(ip_address)
-    output_area.append(f"Monitoring victim: {ip_address}\n")
-    
-    message = f"Vulnerability detected at {ip_address}."
-    output_area.append(message)
+        def run(self):
+            if not validate_ip(self.ip_address):
+                self.signals.result.emit(f"Invalid IP address: {self.ip_address}\n")
+                return
+
+            victims.append(self.ip_address)
+            self.signals.result.emit(f"Monitoring victim: {self.ip_address}\nVulnerability detected at {self.ip_address}.")
+
+    signals = WorkerSignals()
+    signals.result.connect(output_area.append)
+
+    victim_thread = VictimThread(ip_address, signals)
+    victim_thread.start()
 
 def validate_ip(ip):
     """Validate if the given string is a valid IP address."""
@@ -76,22 +103,27 @@ def validate_ip(ip):
 # ===================== Scanning ===================== #
 def scan_target(rhost, output_area):
     """Scan target using Nmap."""
-    try:
-        nm = nmap.PortScanner()
-        nm.scan(rhost, arguments=NMAP_ARGS)
-        result = f"Target OS: {nm[rhost]['osclass'][0]['osfamily']}\n{nm.csv()}"
-        output_area.append(result)
-    except Exception as e:
-        handle_exception(e, output_area)
+    class ScanThread(QThread):
+        def __init__(self, rhost, signals):
+            super().__init__()
+            self.rhost = rhost
+            self.signals = signals
 
-# ===================== Error Handling ===================== #
-def handle_exception(exception, output_area=None):
-    """Log and handle exceptions."""
-    error_message = str(exception)
-    logging.error(error_message)
-    if output_area:
-        output_area.append(f"Error: {error_message}")
-        detect_and_fix_errors(error_message, output_area)
+        def run(self):
+            try:
+                nm = nmap.PortScanner()
+                nm.scan(self.rhost, arguments=NMAP_ARGS)
+                result = f"Target OS: {nm[self.rhost]['osclass'][0]['osfamily']}\n{nm.csv()}"
+                self.signals.result.emit(result)
+            except Exception as e:
+                self.signals.result.emit(f"Error: {str(e)}")
+                logging.error(f"Nmap error: {str(e)}")
+
+    signals = WorkerSignals()
+    signals.result.connect(output_area.append)
+
+    scan_thread = ScanThread(rhost, signals)
+    scan_thread.start()
 
 # ===================== GUI Application ===================== #
 class MultiToolV4(QMainWindow):
